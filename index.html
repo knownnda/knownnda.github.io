@@ -113,10 +113,15 @@ function ensureBeach(){if(actx&&bBuf&&!bSrc&&!beachDone)bSrc=loopSrc(bBuf,bGain)
 function startMusic(){mWanted=true;if(!actx)return;wake();if(mBuf&&!mSrc)mSrc=loopSrc(mBuf,mGain);ramp(mGain,MUSIC_GAIN,2.5)}
 // start screen: beach waves fade in (only on the very first visit to the start screen)
 function beachIn(){if(beachDone)return;intro=true;if(!actx)return;wake();ensureBeach();ramp(bGain,BEACH_GAIN,1.5)}
-// leaving the start screen: the waves are cut off straight away (tiny fade so there is no pop) and never come back
-function beachOut(){intro=false;beachDone=true;if(!actx||!bGain)return;
-  const n=actx.currentTime,p=bGain.gain;p.cancelScheduledValues(n);p.setValueAtTime(p.value,n);p.linearRampToValueAtTime(0,n+.12);
-  const s=bSrc;bSrc=null;bBuf=null;setTimeout(()=>{try{s&&s.stop()}catch(e){}},400)}
+// leaving the start screen. If the waves were already audible they are cut off straight away (tiny fade, no pop).
+// Browsers block sound until the first click, so if they could not be heard yet, they swell briefly under the transition and then fade out. Either way they never come back.
+function beachOut(heard){intro=false;
+  if(!actx||!bGain){beachDone=true;return}
+  const n=actx.currentTime,p=bGain.gain;
+  if(heard){beachDone=true;p.cancelScheduledValues(n);p.setValueAtTime(p.value,n);p.linearRampToValueAtTime(0,n+.12);
+    const s=bSrc;bSrc=null;bBuf=null;setTimeout(()=>{try{s&&s.stop()}catch(e){}},400)}
+  else{ensureBeach();beachDone=true;p.cancelScheduledValues(n);p.setValueAtTime(0,n);p.linearRampToValueAtTime(BEACH_GAIN,n+.4);p.linearRampToValueAtTime(0,n+3.4);
+    const s=bSrc;bSrc=null;bBuf=null;setTimeout(()=>{try{s&&s.stop()}catch(e){}},4200)}}
 function toggleMute(){mMuted=!mMuted;if(aGain)aGain.gain.value=mMuted?0:1;wake()}
 const list=document.getElementById('list'),v1=document.getElementById('v1'),v2=document.getElementById('v2');
 let cur=MAIN,els=[],level=0,i=-1,started=false,busy=false;
@@ -169,7 +174,8 @@ function go(){
   else if(it.url){play('ok');window.open(it.url,'_blank','noopener')}
 }
 function start(){if(started)return;started=true;
-  startMusic();beachOut();play('move');
+  const heard=!!actx&&actx.state==='running';
+  startMusic();beachOut(heard);play('move');
   showIdle();
   document.body.classList.add('on');
   setTimeout(()=>{if(started&&i<0)sel(0)},900)}
